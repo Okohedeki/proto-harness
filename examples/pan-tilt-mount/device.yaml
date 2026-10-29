@@ -1,0 +1,63 @@
+# Example device: mostly mechanical, with motors. Part numbers and prices are illustrative placeholders.
+name: Pan-Tilt Camera Mount
+summary: >
+  A desk mount that pans and tilts a small camera under USB control, for streaming and
+  time-lapse photography.
+
+requirements:
+  functions:
+    - pan 340 degrees and tilt 90 degrees
+    - hold a camera up to 300 g
+    - controlled from a computer over USB
+  quantity: 50
+  target_unit_cost_usd: 45
+  markets: [US]
+  environment: indoor desk
+  size_mm: [120, 120, 160]
+
+blocks:
+  - {id: mcu, kind: compute, part: mcu, io_v: 3.3, programmable: true}
+  - {id: pan-driver, kind: electronics, part: stepper-driver, io_v: 3.3}
+  - {id: tilt-driver, kind: electronics, part: stepper-driver, io_v: 3.3}
+  - {id: pan-motor, kind: actuator, part: stepper-motor}
+  - {id: tilt-motor, kind: actuator, part: stepper-motor}
+  - {id: home-switch, kind: sensor, part: hall-sensor, io_v: 5}
+  - {id: frame, kind: mechanical, part: bearing}
+
+interfaces:
+  - {from: mcu, to: pan-driver, kind: uart}
+  - {from: mcu, to: tilt-driver, kind: uart}
+  - {from: pan-driver, to: pan-motor, kind: power}
+  - {from: tilt-driver, to: tilt-motor, kind: power}
+  - {from: mcu, to: home-switch, kind: gpio}
+  - {from: pan-motor, to: frame, kind: mechanical}
+
+power:
+  sources:
+    - {id: usb, kind: usb, voltage_v: 5, max_current_ma: 1500}
+  rails:
+    - {id: 3v3, from: usb, voltage_v: 3.3, regulator: ldo, max_current_ma: 300}
+  loads:
+    - {block: mcu, rail: 3v3, active_ma: 30}
+    - {block: pan-driver, rail: usb, active_ma: 5}
+    - {block: tilt-driver, rail: usb, active_ma: 5}
+    - {block: pan-motor, rail: usb, active_ma: 400, peak_ma: 700, duty: 0.3, sleep_ma: 0}
+    - {block: tilt-motor, rail: usb, active_ma: 400, peak_ma: 700, duty: 0.3, sleep_ma: 0}
+    - {block: home-switch, rail: 3v3, active_ma: 3}
+
+parts:
+  - {id: mcu, mpn: EXAMPLE-MCU-USB, category: ic, qty: 1, unit_cost_usd: 1.2, suppliers: [distributor-a, distributor-b], lifecycle: active, lead_time_weeks: 2}
+  - {id: stepper-driver, mpn: EXAMPLE-STEPPER-DRV, category: ic, qty: 2, unit_cost_usd: 2.1, suppliers: [distributor-a], lifecycle: nrnd, lead_time_weeks: 10}
+  - {id: stepper-motor, mpn: TBD, category: motor, qty: 2, suppliers: []}
+  - {id: hall-sensor, mpn: EXAMPLE-HALL, category: sensor, qty: 1, unit_cost_usd: 0.3, suppliers: [distributor-a, distributor-b], lifecycle: active}
+  - {id: bearing, mpn: EXAMPLE-BEARING-6806, category: mechanical, qty: 1, unit_cost_usd: 1.8, suppliers: [bearing-vendor-a, bearing-vendor-b], lifecycle: active, dims_mm: [42, 42, 7]}
+
+boards:
+  - {id: ctrl, source: hardware/ctrl, size_mm: [50, 50], height_mm: 12, layers: 2}
+
+mechanical:
+  - {id: base, process: fdm, material: PETG, inner_mm: [100, 100, 60], wall_mm: 3, holds: [ctrl, bearing]}
+  - {id: yoke, process: fdm, material: PETG}
+
+firmware:
+  - {id: fw, target: mcu, framework: platformio, path: firmware}

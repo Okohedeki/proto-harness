@@ -1,0 +1,83 @@
+# device.yaml: the single source of truth for this device.
+# Every stage reads and writes this file. Run `ph status` to see which gate is next.
+# Units live in key names: _mm, _v, _ma, _usd, _weeks, _days.
+
+name: {{name}}
+summary: ""            # one or two sentences: what it does and for whom
+
+requirements:
+  functions: []        # what a user must be able to do, e.g. "read temperature every 10 min"
+  quantity: null       # units in the first real build
+  target_unit_cost_usd: null
+  markets: []          # US, CA, EU, UK, ... (drives certification)
+  environment: ""      # indoor, outdoor, wearable, vehicle, industrial...
+  size_mm: []          # max outside envelope [x, y, z]
+  battery_life_days: null
+  schedule_weeks: null # weeks until units must exist
+
+# Subsystems. kind: compute | electronics | sensor | actuator | display | radio | power | mechanical
+blocks: []
+#  - id: mcu
+#    kind: compute
+#    part: mcu-module       # id from parts below
+#    io_v: 3.3              # logic level, used to check interfaces
+#    programmable: true
+
+# Connections between blocks. kind: i2c | spi | uart | usb | can | gpio | pwm | analog | mechanical ...
+interfaces: []
+#  - {from: mcu, to: sensor, kind: i2c}
+
+power:
+  sources: []
+  #  - {id: batt, kind: battery, chemistry: li-ion, voltage_v: 3.7, min_voltage_v: 3.0, capacity_mah: 1000}
+  #  - {id: usb, kind: usb, voltage_v: 5, max_current_ma: 500}
+  rails: []
+  #  - {id: 3v3, from: batt, voltage_v: 3.3, regulator: buck-boost, efficiency: 0.9, max_current_ma: 600, quiescent_ma: 0.002}
+  loads: []
+  #  - {block: mcu, rail: 3v3, active_ma: 80, sleep_ma: 0.01, duty: 0.02, peak_ma: 350}
+
+parts: []
+#  - id: mcu-module
+#    mpn: TBD
+#    category: module        # ic | module | passive | connector | sensor | motor | battery | display | mechanical | fastener
+#    qty: 1                  # per device
+#    unit_cost_usd: {1: 3.0, 100: 2.4, 1000: 2.0}   # or a single number
+#    suppliers: []
+#    lifecycle: active       # active | nrnd | eol
+#    lead_time_weeks: 2
+#    features: []            # radio-wifi, radio-ble, laser, ...
+#    certified: false        # true for pre-certified radio modules
+#    dims_mm: []             # for fit checks
+
+boards: []
+#  - id: main
+#    source: hardware/main   # KiCad project folder, .ato or SKiDL file
+#    size_mm: [50, 30]
+#    height_mm: 8            # board plus tallest component
+#    layers: 2
+
+mechanical: []
+#  - id: case
+#    process: fdm            # fdm | sla | cnc | sheet-metal | injection-molding | off-the-shelf
+#    material: PETG
+#    source: mechanical/case.py
+#    inner_mm: [56, 36, 20]
+#    wall_mm: 2
+#    holds: [main]
+
+firmware: []
+#  - id: fw
+#    target: mcu
+#    framework: platformio
+#    path: firmware
+
+compliance:
+  plans: {}                 # certification name (as listed by `ph report`) -> how you will meet it
+
+manufacturing:
+  pcb_fab: ""
+  assembly: ""              # in-house | pcba house | contract manufacturer
+  test_plan: ""
+  suppliers: []
+
+decisions: []               # [{date, decision, why}] so later stages know what was settled
