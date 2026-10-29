@@ -46,7 +46,7 @@ advice.
 Needs Python 3.10+ on Windows, macOS or Linux.
 
 ```bash
-pip install git+https://github.com/okohedeki/proto-harness
+pip install git+https://github.com/Okohedeki/proto-harness
 ```
 
 Or from a clone:
