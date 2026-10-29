@@ -2,18 +2,40 @@
 
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 DEVICE_FILE = "device.yaml"
+LOCK_FILE = "parts.lock.json"  # live distributor data, written by `ph parts`
+STALE_DAYS = 30
 
 
 class Device:
-    def __init__(self, data: dict[str, Any], root: Path | str):
+    def __init__(self, data: dict[str, Any], root: Path | str, lock: dict[str, Any] | None = None):
         self.data = data or {}
         self.root = Path(root)
+        self._lock = lock
+
+    @property
+    def lock(self) -> dict[str, Any]:
+        if self._lock is None:
+            p = self.root / LOCK_FILE
+            try:
+                self._lock = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+            except (OSError, json.JSONDecodeError):
+                self._lock = {}
+        return self._lock
+
+    def live(self, part: dict[str, Any]) -> dict[str, Any] | None:
+        """Lock entry for a part, only if it was looked up for the part's current MPN."""
+        entry = (self.lock.get("parts") or {}).get(part.get("id"))
+        if not entry or str(entry.get("mpn", "")).upper() != str(part.get("mpn", "")).upper():
+            return None
+        return entry
 
     @classmethod
     def load(cls, path: Path | str = ".") -> "Device":
@@ -114,21 +136,59 @@ def price_at(part: dict[str, Any], units: int) -> float | None:
     return None
 
 
+def offer_price(offer: dict[str, Any], units: int) -> float | None:
+    breaks = sorted((int(q), float(p)) for q, p in offer.get("price_breaks") or [])
+    if not breaks or offer.get("currency", "USD") != "USD":
+        return None
+    return price_at({"unit_cost_usd": dict(breaks)}, units)
+
+
+def best_offer(entry: dict[str, Any], units: int) -> tuple[dict[str, Any] | None, float | None]:
+    """Cheapest USD offer that can cover `units` from stock, else the cheapest priced offer."""
+    priced = [(o, offer_price(o, units)) for o in entry.get("offers") or []]
+    priced = [(o, p) for o, p in priced if p is not None]
+    if not priced:
+        return None, None
+    in_stock = [(o, p) for o, p in priced if int(o.get("stock") or 0) >= units]
+    return min(in_stock or priced, key=lambda op: op[1])
+
+
+def age_days(entry: dict[str, Any]) -> float | None:
+    try:
+        when = datetime.fromisoformat(str(entry.get("looked_up")))
+    except ValueError:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - when).total_seconds() / 86400
+
+
 def bom_lines(device: Device) -> list[dict[str, Any]]:
-    """One row per part, priced at the device's build quantity."""
+    """One row per part, priced at the device's build quantity. Live prices win over typed ones."""
     rows = []
     for part in device.parts:
         per_unit = float(part.get("qty", 1) or 1)
         units = int(per_unit * device.quantity)
-        price = price_at(part, units)
+        price, price_source = price_at(part, units), "typed"
+        suppliers = list(part.get("suppliers") or [])
+        entry = device.live(part)
+        if entry:
+            for o in entry.get("offers") or []:
+                if int(o.get("stock") or 0) > 0 and o.get("supplier") not in suppliers:
+                    suppliers.append(o.get("supplier"))
+            offer, live_price = best_offer(entry, units)
+            if live_price is not None:
+                price = live_price
+                price_source = f"{offer.get('supplier')} {str(entry.get('looked_up', ''))[:10]}"
         rows.append({
             "id": part.get("id", "?"),
             "mpn": part.get("mpn", ""),
             "category": part.get("category", ""),
             "qty": per_unit,
             "unit_cost_usd": price,
+            "price_source": price_source if price is not None else "",
             "line_cost_usd": None if price is None else price * per_unit,
-            "suppliers": part.get("suppliers") or [],
+            "suppliers": suppliers,
             "lifecycle": part.get("lifecycle", ""),
             "lead_time_weeks": part.get("lead_time_weeks"),
         })

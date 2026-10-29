@@ -31,7 +31,7 @@ the tools cannot judge, which each stage writes to `docs/review.md`.
 | spec | summary, functions, build quantity, unit cost target, markets, environment, size limit |
 | architecture | blocks and interfaces exist, unconnected blocks, logic-level mismatches without a level shifter |
 | power | every powered block has a load, rail peak vs regulator limit (80% warning), LDO dropout at end of battery discharge, source current limits, switching-regulator input current, battery life vs requirement |
-| parts | every block has a real part, MPN present, price at build quantity (price breaks), lifecycle (EOL/NRND), supplier count, BOM cost vs target |
+| parts | every block has a real part, MPN present, **live stock vs build quantity**, price at build quantity (live or typed price breaks), lifecycle (live or typed EOL/NRND), stale live data, supplier count, BOM cost vs target |
 | electronics | board size and layers, source exists, **KiCad ERC and DRC** through `kicad-cli` when installed |
 | mechanical | process and material set, CAD source exists, boards and parts fit inside with clearance (any rotation), outside size within limit, packing density |
 | firmware | target block exists, project exists, **PlatformIO build** when installed |
@@ -77,12 +77,36 @@ cd my-device
 ph status                              # which gates pass, what blocks the current stage
 ph check --stage power                 # run one gate
 ph check                               # run every gate
+ph parts                               # live stock, prices, lifecycle -> parts.lock.json
 ph report                              # REPORT.md: the whole device on one page
 ph bom -o bom.csv                      # BOM priced at the build quantity
 ph doctor                              # installed checkers
 ```
 
 `ph check` and `ph status` exit non-zero when a gate is blocked, so they work in CI and git hooks.
+
+### Live part data
+
+`ph parts` looks up every part with a real MPN and writes what it finds to `parts.lock.json`:
+stock, price breaks, lifecycle, lead time, source and the time of the lookup. `device.yaml` says
+which part you want; the lock records what the market says about it, like a package lock file.
+The parts gate then:
+
+- prices the BOM from the cheapest offer that can cover the build from stock (typed prices are the fallback)
+- blocks a part that is out of stock everywhere, and warns when total stock is below the build quantity
+- uses the worst live lifecycle (obsolete or EOL blocks, NRND warns)
+- warns when a lookup is more than 30 days old, or when the MPN changed since the last lookup
+
+| Source | Setup | Notes |
+|---|---|---|
+| `lcsc` | none | Community mirror of the JLCPCB/LCSC catalog. Add `lcsc: C1234` to a part for an exact lookup; without it, only an exact MPN match counts, and the mirror's MPN search often misses. |
+| `digikey` | `DIGIKEY_CLIENT_ID`, `DIGIKEY_CLIENT_SECRET` | Free app at developer.digikey.com (Product Information API v4). |
+| `mouser` | `MOUSER_API_KEY` | Free Search API key from your Mouser account. |
+
+Keys are read from environment variables only and never written to the project. Without keys,
+`ph parts` uses LCSC alone. Pick sources with `--sources lcsc,mouser`, refresh a few parts with
+`--only part-a,part-b`, or preview with `--dry-run`. Set `no_lookup: true` on parts that no
+distributor carries (custom cells, machined parts, the PCB itself).
 
 ### With an AI assistant
 
@@ -99,6 +123,7 @@ looks, trade-offs) and research the rest. They never invent part numbers or pric
 ```
 my-device/
   device.yaml        single source of truth
+  parts.lock.json    live distributor data from `ph parts`
   REPORT.md          generated overview: gates, block diagram, power, BOM, certification
   hardware/          circuit as code and KiCad output
   mechanical/        enclosure as code, STEP/STL exports
@@ -109,10 +134,11 @@ my-device/
 
 ## Examples
 
-Placeholder part numbers and prices; both are partway through, to show how gates block.
+Both are partway through, to show how gates block.
 
-- [`examples/soil-sensor`](examples/soil-sensor): battery Wi-Fi sensor. The power gate catches a
-  battery life shortfall.
+- [`examples/soil-sensor`](examples/soil-sensor): battery Wi-Fi sensor with real electronic parts
+  priced live from LCSC. The power gate catches a battery life shortfall, and the parts gate shows a
+  part that LCSC lookup can't find without a distributor key.
 - [`examples/pan-tilt-mount`](examples/pan-tilt-mount): motorized, mostly mechanical. The architecture gate catches
   a 3.3 V / 5 V logic mismatch and the parts gate catches an unchosen motor.
 
@@ -123,7 +149,7 @@ ph report examples/pan-tilt-mount
 
 ## Roadmap
 
-- Live part lookups (stock, price, lifecycle) from distributor APIs
+- More part sources (Nexar/Octopart, TME, Farnell) and alternate-part suggestions
 - atopile/SKiDL build step and Freerouting run inside the electronics gate
 - KiBot fab package generation and per-fab rule profiles
 - Enclosure generator from board outline and connector positions

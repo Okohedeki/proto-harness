@@ -57,14 +57,14 @@ Source **usb** (usb): peak 1443 mA, average 283.000 mA
 
 ## Bill of materials (priced at 50 units)
 
-| Part | MPN | Category | Qty | Unit $ | Line $ | Suppliers | Lifecycle | Lead wks |
-|---|---|---|---|---|---|---|---|---|
-| mcu | EXAMPLE-MCU-USB | ic | 1 | 1.200 | 1.20 | distributor-a, distributor-b | active | 2 |
-| stepper-driver | EXAMPLE-STEPPER-DRV | ic | 2 | 2.100 | 4.20 | distributor-a | nrnd | 10 |
-| stepper-motor | TBD | motor | 2 | ? | ? |  |  |  |
-| hall-sensor | EXAMPLE-HALL | sensor | 1 | 0.300 | 0.30 | distributor-a, distributor-b | active |  |
-| bearing | EXAMPLE-BEARING-6806 | mechanical | 1 | 1.800 | 1.80 | bearing-vendor-a, bearing-vendor-b | active |  |
-| **Total** | | | | | **7.50** | | | |
+| Part | MPN | Category | Qty | Unit $ | Line $ | Price from | Suppliers | Lifecycle | Lead wks |
+|---|---|---|---|---|---|---|---|---|---|
+| mcu | EXAMPLE-MCU-USB | ic | 1 | 1.200 | 1.20 | typed | distributor-a, distributor-b | active | 2 |
+| stepper-driver | EXAMPLE-STEPPER-DRV | ic | 2 | 2.100 | 4.20 | typed | distributor-a | nrnd | 10 |
+| stepper-motor | TBD | motor | 2 | ? | ? |  |  |  |  |
+| hall-sensor | EXAMPLE-HALL | sensor | 1 | 0.300 | 0.30 | typed | distributor-a, distributor-b | active |  |
+| bearing | EXAMPLE-BEARING-6806 | mechanical | 1 | 1.800 | 1.80 | typed | bearing-vendor-a, bearing-vendor-b | active |  |
+| **Total** | | | | | **7.50** | | | | |
 
 ## Certification checklist
 
@@ -83,9 +83,9 @@ _Starting checklist, not legal advice. Confirm with an accredited test lab._
 - **warn**: part 'stepper-driver': lifecycle is nrnd; find a replacement before volume
 - **warn**: part 'stepper-driver': single source (distributor-a)
 - **error**: part 'stepper-motor': no manufacturer part number
-- **error**: part 'stepper-motor': no unit_cost_usd
+- **error**: part 'stepper-motor': no price; run `ph parts` or set unit_cost_usd
 - **warn**: part 'stepper-motor': lifecycle unknown
-- **error**: part 'stepper-motor': no supplier
+- **error**: part 'stepper-motor': no supplier with stock
 - **info**: parts cost $7.50/unit at 50 units (target $45.00)
 
 ### Boards

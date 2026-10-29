@@ -4,7 +4,7 @@ A battery-powered stake that measures soil moisture and temperature in a garden 
 
 **Current stage:** Power budget  
 **Build quantity:** 200  
-**Parts cost:** $10.20/unit (target $18.00)
+**Parts cost:** $7.90/unit (target $18.00)
 
 ## Gates
 
@@ -13,7 +13,7 @@ A battery-powered stake that measures soil moisture and temperature in a garden 
 | Requirements | pass | 0 | 0 |
 | Architecture and interfaces | pass | 0 | 0 |
 | Power budget | BLOCKED | 1 | 0 |
-| Parts and BOM | pass | 0 | 1 |
+| Parts and BOM | BLOCKED | 2 | 6 |
 | Boards | BLOCKED | 1 | 0 |
 | Enclosure and mechanics | BLOCKED | 1 | 0 |
 | Firmware | BLOCKED | 1 | 0 |
@@ -50,22 +50,22 @@ flowchart LR
 |---|---|---|---|---|---|
 | 3v3 | 3.3 | 353.5 | 0.375 | 800 | batt |
 
-Source **batt** (battery): peak 358 mA, average 0.383 mA, about 105 days
+Source **batt** (battery): peak 358 mA, average 0.406 mA, about 99 days
 
 ## Bill of materials (priced at 200 units)
 
-| Part | MPN | Category | Qty | Unit $ | Line $ | Suppliers | Lifecycle | Lead wks |
-|---|---|---|---|---|---|---|---|---|
-| wifi-module | EXAMPLE-WIFI-MODULE | module | 1 | 2.600 | 2.60 | distributor-a, distributor-b | active | 3 |
-| moisture-afe | EXAMPLE-OPAMP | ic | 1 | 0.350 | 0.35 | distributor-a, distributor-b | active | 2 |
-| temp-sensor | EXAMPLE-TEMP-I2C | sensor | 1 | 0.800 | 0.80 | distributor-a, distributor-b | active | 4 |
-| charger-ic | EXAMPLE-CHARGER | ic | 1 | 0.600 | 0.60 | distributor-a, distributor-b | active | 2 |
-| buck-boost | EXAMPLE-BUCKBOOST | ic | 1 | 1.400 | 1.40 | distributor-a | active | 6 |
-| usb-c-receptacle | EXAMPLE-USBC-16P | connector | 1 | 0.250 | 0.25 | distributor-a, distributor-b | active | 2 |
-| cell | EXAMPLE-LIION-1200 | battery | 1 | 2.900 | 2.90 | cell-vendor-a, cell-vendor-b | active | 5 |
-| passives | EXAMPLE-PASSIVE-KIT | passive | 1 | 0.400 | 0.40 | distributor-a | active | 1 |
-| pcb | EXAMPLE-PCB-2L | pcb | 1 | 0.900 | 0.90 | fab-a, fab-b | active | 1 |
-| **Total** | | | | | **10.20** | | | |
+| Part | MPN | Category | Qty | Unit $ | Line $ | Price from | Suppliers | Lifecycle | Lead wks |
+|---|---|---|---|---|---|---|---|---|---|
+| wifi-module | ESP32-C3-MINI-1-N4 | module | 1 | 2.927 | 2.93 | LCSC 2026-10-29 | LCSC | active |  |
+| moisture-afe | LMV321IDBVR | ic | 1 | 0.069 | 0.07 | LCSC 2026-10-29 | LCSC | active |  |
+| temp-sensor | SHT40-AD1B-R2 | sensor | 1 | ? | ? |  |  | active |  |
+| charger-ic | TP4056 | ic | 1 | 0.058 | 0.06 | LCSC 2026-10-29 | LCSC | active |  |
+| buck-boost | TPS63020DSJR | ic | 1 | 0.514 | 0.51 | LCSC 2026-10-29 | LCSC | active |  |
+| usb-c-receptacle | TYPE-C-31-M-12 | connector | 1 | 0.128 | 0.13 | LCSC 2026-10-29 | LCSC | active |  |
+| cell | EXAMPLE-LIION-1200 | battery | 1 | 2.900 | 2.90 | typed | cell-vendor-a, cell-vendor-b | active | 5 |
+| passives | EXAMPLE-PASSIVE-KIT | passive | 1 | 0.400 | 0.40 | typed | distributor-a | active | 1 |
+| pcb | EXAMPLE-PCB-2L | pcb | 1 | 0.900 | 0.90 | typed | fab-a, fab-b | active | 1 |
+| **Total** | | | | | **7.90** | | | | |
 
 ## Certification checklist
 
@@ -86,12 +86,24 @@ _Starting checklist, not legal advice. Confirm with an accredited test lab._
 ## Findings
 
 ### Power budget
-- **info**: battery 'batt': average 0.383 mA, about 105 days
-- **error**: battery life about 105 days, requirement is 180 days
+- **info**: battery 'batt': average 0.406 mA, about 99 days
+- **error**: battery life about 99 days, requirement is 180 days
 
 ### Parts and BOM
-- **warn**: part 'buck-boost': single source (distributor-a)
-- **info**: parts cost $10.20/unit at 200 units (target $18.00)
+- **info**: part 'wifi-module': 13108 in stock (LCSC), $2.927 each at 200
+- **warn**: part 'wifi-module': single source (LCSC)
+- **info**: part 'moisture-afe': 139320 in stock (LCSC), $0.069 each at 200
+- **warn**: part 'moisture-afe': single source (LCSC)
+- **error**: part 'temp-sensor': no price; run `ph parts` or set unit_cost_usd
+- **warn**: part 'temp-sensor': SHT40-AD1B-R2 not found at lcsc
+- **error**: part 'temp-sensor': no supplier with stock
+- **info**: part 'charger-ic': 357066 in stock (LCSC), $0.058 each at 200
+- **warn**: part 'charger-ic': single source (LCSC)
+- **info**: part 'buck-boost': 18252 in stock (LCSC), $0.514 each at 200
+- **warn**: part 'buck-boost': single source (LCSC)
+- **info**: part 'usb-c-receptacle': 303407 in stock (LCSC), $0.128 each at 200
+- **warn**: part 'usb-c-receptacle': single source (LCSC)
+- **info**: parts cost $7.90/unit at 200 units (target $18.00)
 
 ### Boards
 - **error**: board 'main': source hardware/main not found
@@ -114,5 +126,5 @@ _Starting checklist, not legal advice. Confirm with an accredited test lab._
 ### Manufacturing and supply
 - **error**: manufacturing.assembly missing: who builds the units (in-house, PCBA house, contract manufacturer)?
 - **error**: manufacturing.pcb_fab missing: which board house
-- **info**: longest part lead time: 6 weeks
+- **info**: longest part lead time: 5 weeks
 - **warn**: manufacturing.test_plan missing: how is each unit tested before it ships?

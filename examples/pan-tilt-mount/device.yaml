@@ -1,4 +1,4 @@
-# Example device: mostly mechanical, with motors. Part numbers and prices are illustrative placeholders.
+# Example device: mostly mechanical, with motors. Part numbers and prices are placeholders (no_lookup: true).
 name: Pan-Tilt Camera Mount
 summary: >
   A desk mount that pans and tilts a small camera under USB control, for streaming and
@@ -46,11 +46,11 @@ power:
     - {block: home-switch, rail: 3v3, active_ma: 3}
 
 parts:
-  - {id: mcu, mpn: EXAMPLE-MCU-USB, category: ic, qty: 1, unit_cost_usd: 1.2, suppliers: [distributor-a, distributor-b], lifecycle: active, lead_time_weeks: 2}
-  - {id: stepper-driver, mpn: EXAMPLE-STEPPER-DRV, category: ic, qty: 2, unit_cost_usd: 2.1, suppliers: [distributor-a], lifecycle: nrnd, lead_time_weeks: 10}
+  - {id: mcu, mpn: EXAMPLE-MCU-USB, no_lookup: true, category: ic, qty: 1, unit_cost_usd: 1.2, suppliers: [distributor-a, distributor-b], lifecycle: active, lead_time_weeks: 2}
+  - {id: stepper-driver, mpn: EXAMPLE-STEPPER-DRV, no_lookup: true, category: ic, qty: 2, unit_cost_usd: 2.1, suppliers: [distributor-a], lifecycle: nrnd, lead_time_weeks: 10}
   - {id: stepper-motor, mpn: TBD, category: motor, qty: 2, suppliers: []}
-  - {id: hall-sensor, mpn: EXAMPLE-HALL, category: sensor, qty: 1, unit_cost_usd: 0.3, suppliers: [distributor-a, distributor-b], lifecycle: active}
-  - {id: bearing, mpn: EXAMPLE-BEARING-6806, category: mechanical, qty: 1, unit_cost_usd: 1.8, suppliers: [bearing-vendor-a, bearing-vendor-b], lifecycle: active, dims_mm: [42, 42, 7]}
+  - {id: hall-sensor, mpn: EXAMPLE-HALL, no_lookup: true, category: sensor, qty: 1, unit_cost_usd: 0.3, suppliers: [distributor-a, distributor-b], lifecycle: active}
+  - {id: bearing, mpn: EXAMPLE-BEARING-6806, no_lookup: true, category: mechanical, qty: 1, unit_cost_usd: 1.8, suppliers: [bearing-vendor-a, bearing-vendor-b], lifecycle: active, dims_mm: [42, 42, 7]}
 
 boards:
   - {id: ctrl, source: hardware/ctrl, size_mm: [50, 50], height_mm: 12, layers: 2}

@@ -10,8 +10,10 @@ from pathlib import Path
 
 from . import __version__, tools
 from .checks import ERROR, INFO, STAGE_NAMES, current_stage, run_all, run_stage
-from .model import DEVICE_FILE, Device
+from .lock import update_lock, write_lock
+from .model import DEVICE_FILE, LOCK_FILE, Device
 from .report import bom_csv, render
+from .sources import SOURCES, available_sources
 
 TAG = {ERROR: "[FAIL]", "warn": "[WARN]", INFO: "[info]"}
 
@@ -100,6 +102,36 @@ def cmd_bom(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_parts(args: argparse.Namespace) -> int:
+    d = Device.load(args.dir)
+    wanted = [s.strip() for s in args.sources.split(",")] if args.sources else available_sources()
+    unknown = [s for s in wanted if s not in SOURCES]
+    if unknown:
+        print(f"unknown source(s): {', '.join(unknown)}; choose from {', '.join(SOURCES)}", file=sys.stderr)
+        return 2
+    keyed = [s for s in ("digikey", "mouser") if s not in wanted]
+    print(f"Sources: {', '.join(wanted)}" + (f"  (add keys to enable {', '.join(keyed)}; see README)" if keyed else ""))
+    only = [p.strip() for p in args.only.split(",")] if args.only else None
+
+    def show(pid: str, entry: dict) -> None:
+        offers = entry["offers"]
+        if offers:
+            stock = sum(o["stock"] for o in offers)
+            sellers = ", ".join(sorted({f"{o['supplier']} {o['sku']}" for o in offers}))
+            print(f"  [ok]   {pid:<20} {entry['mpn']:<24} stock {stock:>9,}  {sellers}")
+        else:
+            why = "; ".join(f"{k}: {v}" for k, v in entry["errors"].items()) or "no exact match"
+            print(f"  [--]   {pid:<20} {entry['mpn']:<24} not found ({why})")
+
+    lock = update_lock(d, wanted, only, progress=show)
+    if args.dry_run:
+        print("Dry run: parts.lock.json not written")
+    else:
+        write_lock(d, lock)
+        print(f"Wrote {d.root / LOCK_FILE}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="ph", description="One place for a whole hardware device, gated stage by stage.")
     p.add_argument("--version", action="version", version=__version__)
@@ -126,6 +158,13 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("dir", nargs="?", default=".")
     s.add_argument("-o", "--out")
     s.set_defaults(fn=cmd_report)
+
+    s = sub.add_parser("parts", help="look up live stock, prices and lifecycle; writes parts.lock.json")
+    s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--sources", help=f"comma list from {', '.join(SOURCES)} (default: every source with keys set)")
+    s.add_argument("--only", help="comma list of part ids to refresh")
+    s.add_argument("--dry-run", action="store_true", help="print results without writing the lock file")
+    s.set_defaults(fn=cmd_parts)
 
     s = sub.add_parser("bom", help="export the BOM as CSV, priced at the build quantity")
     s.add_argument("dir", nargs="?", default=".")

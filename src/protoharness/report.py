@@ -69,14 +69,14 @@ def render(d: Device, results: list[StageResult]) -> str:
 
     if d.parts:
         out += ["", f"## Bill of materials (priced at {d.quantity} units)", "",
-                "| Part | MPN | Category | Qty | Unit $ | Line $ | Suppliers | Lifecycle | Lead wks |",
-                "|---|---|---|---|---|---|---|---|---|"]
+                "| Part | MPN | Category | Qty | Unit $ | Line $ | Price from | Suppliers | Lifecycle | Lead wks |",
+                "|---|---|---|---|---|---|---|---|---|---|"]
         for row in bom_lines(d):
             unit = f"{row['unit_cost_usd']:.3f}" if row["unit_cost_usd"] is not None else "?"
             line = f"{row['line_cost_usd']:.2f}" if row["line_cost_usd"] is not None else "?"
             out.append(f"| {row['id']} | {row['mpn']} | {row['category']} | {row['qty']:g} | {unit} | {line} | "
-                       f"{', '.join(row['suppliers'])} | {row['lifecycle']} | {row['lead_time_weeks'] or ''} |")
-        out.append(f"| **Total** | | | | | **{bom_total(d):.2f}** | | | |")
+                       f"{row['price_source']} | {', '.join(row['suppliers'])} | {row['lifecycle']} | {row['lead_time_weeks'] or ''} |")
+        out.append(f"| **Total** | | | | | **{bom_total(d):.2f}** | | | | |")
 
     certs = required_certifications(d)
     if certs:
@@ -101,9 +101,9 @@ def render(d: Device, results: list[StageResult]) -> str:
 def bom_csv(d: Device) -> str:
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
-    w.writerow(["id", "mpn", "category", "qty_per_unit", "unit_cost_usd", "line_cost_usd",
+    w.writerow(["id", "mpn", "category", "qty_per_unit", "unit_cost_usd", "line_cost_usd", "price_from",
                 "suppliers", "lifecycle", "lead_time_weeks"])
     for r in bom_lines(d):
-        w.writerow([r["id"], r["mpn"], r["category"], r["qty"], r["unit_cost_usd"], r["line_cost_usd"],
+        w.writerow([r["id"], r["mpn"], r["category"], r["qty"], r["unit_cost_usd"], r["line_cost_usd"], r["price_source"],
                     ";".join(r["suppliers"]), r["lifecycle"], r["lead_time_weeks"]])
     return buf.getvalue()

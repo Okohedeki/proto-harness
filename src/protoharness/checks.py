@@ -8,7 +8,8 @@ from typing import Callable
 
 from . import tools
 from .compliance import required_certifications
-from .model import Device, bom_lines, bom_total
+from .lock import needs_lookup
+from .model import STALE_DAYS, Device, age_days, bom_lines, bom_total, price_at
 from .power import PowerTree
 
 ERROR, WARN, INFO = "error", "warn", "info"
@@ -181,8 +182,9 @@ def check_parts(d: Device, r: StageResult) -> None:
         if not line["mpn"] or str(line["mpn"]).upper() == "TBD":
             r.error(f"part '{pid}': no manufacturer part number")
         if line["unit_cost_usd"] is None:
-            r.error(f"part '{pid}': no unit_cost_usd")
-        life = str(line["lifecycle"]).lower()
+            r.error(f"part '{pid}': no price; run `ph parts` or set unit_cost_usd")
+        live_life = _check_live(d, part, line, r)
+        life = (live_life or str(line["lifecycle"])).lower()
         if life in BAD_LIFECYCLE:
             r.error(f"part '{pid}': lifecycle is {life}")
         elif life in RISKY_LIFECYCLE:
@@ -190,7 +192,7 @@ def check_parts(d: Device, r: StageResult) -> None:
         elif not life:
             r.warn(f"part '{pid}': lifecycle unknown")
         if not line["suppliers"]:
-            r.error(f"part '{pid}': no supplier")
+            r.error(f"part '{pid}': no supplier with stock")
         elif len(line["suppliers"]) == 1 and str(line["category"]).lower() not in PASSIVE:
             r.warn(f"part '{pid}': single source ({line['suppliers'][0]})")
     total = bom_total(d)
@@ -202,6 +204,43 @@ def check_parts(d: Device, r: StageResult) -> None:
             r.error(f"parts alone cost ${total:.2f}, above the ${target:.2f} unit target")
         elif total > 0.6 * target:
             r.warn(f"parts are {total / target:.0%} of the target; assembly, enclosure, packaging and yield usually need the rest")
+
+
+_LIFE_RANK = {"obsolete": 3, "discontinued": 3, "eol": 3, "nrnd": 2, "last-time-buy": 2, "ltb": 2, "active": 1}
+
+
+def _check_live(d: Device, part: dict, line: dict, r: StageResult) -> str | None:
+    """Checks a part against its parts.lock.json entry. Returns the worst live lifecycle, if any."""
+    if not needs_lookup(part):
+        return None
+    pid = line["id"]
+    entry = d.live(part)
+    if entry is None:
+        r.warn(f"part '{pid}': stock and price not checked live; run `ph parts`")
+        return None
+    age = age_days(entry)
+    if age is not None and age > STALE_DAYS:
+        r.warn(f"part '{pid}': live data is {age:.0f} days old; run `ph parts`")
+    offers = entry.get("offers") or []
+    if not offers:
+        where = ", ".join(entry.get("sources") or []) or "any source"
+        failed = "; ".join(f"{k}: {v}" for k, v in (entry.get("errors") or {}).items())
+        r.warn(f"part '{pid}': {line['mpn']} not found at {where}" + (f" ({failed})" if failed else ""))
+        return None
+    need = int(float(part.get("qty", 1) or 1) * d.quantity)
+    stock = sum(int(o.get("stock") or 0) for o in offers)
+    sellers = sorted({o.get("supplier", "?") for o in offers})
+    if stock == 0:
+        r.error(f"part '{pid}': out of stock at {', '.join(sellers)}")
+    elif stock < need:
+        r.warn(f"part '{pid}': {stock} in stock across {', '.join(sellers)}, build needs {need}; check factory lead time")
+    else:
+        r.info(f"part '{pid}': {stock} in stock ({', '.join(sellers)}), ${line['unit_cost_usd'] or 0:.3f} each at {need}")
+    typed = price_at(part, need)
+    if typed and line["unit_cost_usd"] and abs(line["unit_cost_usd"] - typed) / typed > 0.25:
+        r.info(f"part '{pid}': live price ${line['unit_cost_usd']:.3f} differs from typed ${typed:.3f}; live price is used")
+    lives = [str(o["lifecycle"]).lower() for o in offers if o.get("lifecycle")]
+    return max(lives, key=lambda x: _LIFE_RANK.get(x, 0)) if lives else None
 
 
 def check_electronics(d: Device, r: StageResult) -> None:
