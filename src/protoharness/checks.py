@@ -6,10 +6,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import tools
+from . import build, tools
 from .compliance import required_certifications
 from .lock import needs_lookup
 from .model import STALE_DAYS, Device, age_days, bom_lines, bom_total, price_at
+from .netlist import check_bom_agreement, check_netlist, load_netlist
 from .power import PowerTree
 
 ERROR, WARN, INFO = "error", "warn", "info"
@@ -252,6 +253,8 @@ def check_electronics(d: Device, r: StageResult) -> None:
         return
     kicad = tools.find(tools.tool("kicad-cli"))
     out_dir = d.path(".ph")
+    report = {ERROR: r.error, WARN: r.warn, INFO: r.info}
+    netlists = {}
     for board in d.boards:
         bid = board.get("id", "?")
         if not _dims(board.get("size_mm")):
@@ -266,24 +269,45 @@ def check_electronics(d: Device, r: StageResult) -> None:
         if not path.exists():
             r.error(f"board '{bid}': source {src} not found")
             continue
-        targets = [path] if path.is_file() else list(path.glob("*.kicad_sch")) + list(path.glob("*.kicad_pcb"))
-        kicad_files = [t for t in targets if t.suffix in (".kicad_sch", ".kicad_pcb")]
-        if not kicad_files:
-            r.warn(f"board '{bid}': no KiCad files yet; build {src} to KiCad to run ERC/DRC")
+
+        kind = build.generator(d, board)
+        net = build.netlist_path(d, board)
+        if kind in ("skidl", "atopile"):
+            if net is None or not net.exists():
+                r.error(f"board '{bid}': {kind} circuit not built yet; run `ph build`")
+                net = None
+            elif path.is_file() and net.stat().st_mtime < path.stat().st_mtime:
+                r.warn(f"board '{bid}': netlist is older than {src}; run `ph build`")
+        if net is not None and net.exists():
+            try:
+                netlists[bid] = load_netlist(net)
+            except (OSError, ValueError) as exc:
+                r.error(f"board '{bid}': cannot read netlist {net.name}: {exc}")
+            else:
+                nl = netlists[bid]
+                r.info(f"board '{bid}': {len(nl.components)} components, {len(nl.nets)} nets in {net.name}")
+                check_netlist(d, bid, nl, lambda level, msg: report[level](msg))
+
+        sch, pcb = build.schematic_files(d, board), [p for p in build.layout_files(d, board) if p.exists()]
+        if not pcb:
+            r.warn(f"board '{bid}': no PCB layout (.kicad_pcb) yet")
+        if not sch and not pcb:
             continue
         if not kicad:
             r.warn(f"board '{bid}': kicad-cli not found, ERC/DRC not run (see `ph doctor`)")
             continue
         out_dir.mkdir(exist_ok=True)
-        for f in kicad_files:
+        for f in sch + pcb:
             sub = "sch" if f.suffix == ".kicad_sch" else "pcb"
             rule = "erc" if sub == "sch" else "drc"
-            report = out_dir / f"{f.stem}.{rule}.rpt"
-            code, out = tools.run([kicad, sub, rule, "--exit-code-violations", "-o", str(report), str(f)])
+            rpt = out_dir / f"{f.stem}.{rule}.rpt"
+            code, _ = tools.run([kicad, sub, rule, "--exit-code-violations", "-o", str(rpt), str(f)])
             if code == 0:
                 r.info(f"board '{bid}': {rule.upper()} clean on {f.name}")
             else:
-                r.error(f"board '{bid}': {rule.upper()} violations in {f.name} (report: {report.relative_to(d.root)})")
+                r.error(f"board '{bid}': {rule.upper()} violations in {f.name} (report: {rpt.relative_to(d.root)})")
+    if netlists:
+        check_bom_agreement(d, netlists, lambda level, msg: report[level](msg))
 
 
 def check_mechanical(d: Device, r: StageResult) -> None:

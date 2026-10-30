@@ -5,3 +5,8 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+# SKiDL side files
+*.erc
+*.log
+*_sklib.py
+skidl_REPL.*

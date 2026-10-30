@@ -14,7 +14,7 @@ A battery-powered stake that measures soil moisture and temperature in a garden 
 | Architecture and interfaces | pass | 0 | 0 |
 | Power budget | BLOCKED | 1 | 0 |
 | Parts and BOM | BLOCKED | 2 | 6 |
-| Boards | BLOCKED | 1 | 0 |
+| Boards | pass | 0 | 1 |
 | Enclosure and mechanics | BLOCKED | 1 | 0 |
 | Firmware | BLOCKED | 1 | 0 |
 | Certification | BLOCKED | 6 | 0 |
@@ -106,7 +106,8 @@ _Starting checklist, not legal advice. Confirm with an accredited test lab._
 - **info**: parts cost $7.90/unit at 200 units (target $18.00)
 
 ### Boards
-- **error**: board 'main': source hardware/main not found
+- **info**: board 'main': 29 components, 16 nets in main.net
+- **warn**: board 'main': no PCB layout (.kicad_pcb) yet
 
 ### Enclosure and mechanics
 - **error**: mechanical 'housing': source mechanical/housing.py not found

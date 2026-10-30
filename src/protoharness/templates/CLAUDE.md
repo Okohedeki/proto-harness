@@ -24,6 +24,7 @@ of truth. Design files live in `hardware/`, `mechanical/` and `firmware/` and ar
 
 - `ph status`: gates and what blocks the current stage
 - `ph check [--stage name]`: run gates
+- `ph build`: circuit code to netlist, KiCad layout to fab files
 - `ph parts`: live stock, prices and lifecycle into parts.lock.json
 - `ph report`: write REPORT.md, the whole device on one page
 - `ph bom -o bom.csv`: BOM priced at the build quantity

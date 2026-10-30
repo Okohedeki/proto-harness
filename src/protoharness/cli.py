@@ -9,6 +9,7 @@ from importlib import resources
 from pathlib import Path
 
 from . import __version__, tools
+from .build import build_board, generator
 from .checks import ERROR, INFO, STAGE_NAMES, current_stage, run_all, run_stage
 from .lock import update_lock, write_lock
 from .model import DEVICE_FILE, LOCK_FILE, Device
@@ -33,6 +34,8 @@ def cmd_init(args: argparse.Namespace) -> int:
     text = (tpl / "device.yaml").read_text(encoding="utf-8")
     device.write_text(text.replace("{{name}}", args.name or dest.resolve().name), encoding="utf-8")
     shutil.copyfile(tpl / "CLAUDE.md", dest / "CLAUDE.md")
+    if not (dest / ".gitignore").exists():
+        shutil.copyfile(tpl / "gitignore", dest / ".gitignore")
     skills_dst = dest / ".claude" / "skills"
     shutil.copytree(tpl / "skills", skills_dst, dirs_exist_ok=True)
     for sub in ("hardware", "mechanical", "firmware", "docs"):
@@ -102,6 +105,25 @@ def cmd_bom(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_build(args: argparse.Namespace) -> int:
+    d = Device.load(args.dir)
+    boards = [b for b in d.boards if not args.board or b.get("id") == args.board]
+    if not boards:
+        print("no matching boards in device.yaml")
+        return 1
+    ok = True
+    for board in boards:
+        res = build_board(d, board)
+        ok &= res.ok
+        print(f"\n{'OK' if res.ok else 'FAILED':<7} board '{res.board}' ({generator(d, board)})")
+        for step in res.steps:
+            print(f"  {'[ok]' if step.ok else '[FAIL]'} {step.name}")
+            for line in step.detail.splitlines():
+                print(f"         {line}")
+    print("\nNext: `ph check --stage electronics`")
+    return 0 if ok else 1
+
+
 def cmd_parts(args: argparse.Namespace) -> int:
     d = Device.load(args.dir)
     wanted = [s.strip() for s in args.sources.split(",")] if args.sources else available_sources()
@@ -158,6 +180,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("dir", nargs="?", default=".")
     s.add_argument("-o", "--out")
     s.set_defaults(fn=cmd_report)
+
+    s = sub.add_parser("build", help="build boards from circuit code and export fab files from layouts")
+    s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--board", help="only this board id")
+    s.set_defaults(fn=cmd_build)
 
     s = sub.add_parser("parts", help="look up live stock, prices and lifecycle; writes parts.lock.json")
     s.add_argument("dir", nargs="?", default=".")

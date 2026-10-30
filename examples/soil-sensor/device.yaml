@@ -61,7 +61,7 @@ parts:
   - {id: pcb, mpn: EXAMPLE-PCB-2L, no_lookup: true, category: pcb, qty: 1, unit_cost_usd: {1: 4.0, 100: 0.9}, suppliers: [fab-a, fab-b], lifecycle: active, lead_time_weeks: 1}
 
 boards:
-  - {id: main, source: hardware/main, size_mm: [28, 120], height_mm: 6, layers: 2}
+  - {id: main, source: hardware/main.py, size_mm: [28, 120], height_mm: 6, layers: 2}
 
 mechanical:
   - {id: housing, process: sla, material: tough resin, source: mechanical/housing.py,

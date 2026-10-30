@@ -1,0 +1,7 @@
+.ph/
+__pycache__/
+# SKiDL side files
+*.erc
+*.log
+*_sklib.py
+skidl_REPL.*

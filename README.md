@@ -32,7 +32,7 @@ the tools cannot judge, which each stage writes to `docs/review.md`.
 | architecture | blocks and interfaces exist, unconnected blocks, logic-level mismatches without a level shifter |
 | power | every powered block has a load, rail peak vs regulator limit (80% warning), LDO dropout at end of battery discharge, source current limits, switching-regulator input current, battery life vs requirement |
 | parts | every block has a real part, MPN present, **live stock vs build quantity**, price at build quantity (live or typed price breaks), lifecycle (live or typed EOL/NRND), stale live data, supplier count, BOM cost vs target |
-| electronics | board size and layers, source exists, **KiCad ERC and DRC** through `kicad-cli` when installed |
+| electronics | board size and layers, circuit code built and not stale, **netlist checks** (footprint on every part, dangling nets, a net for every power rail, ground present, decoupling capacitor on each chip's supply, I2C pull-ups, board chips match device.yaml parts both ways), **KiCad ERC and DRC** through `kicad-cli` when installed |
 | mechanical | process and material set, CAD source exists, boards and parts fit inside with clearance (any rotation), outside size within limit, packing density |
 | firmware | target block exists, project exists, **PlatformIO build** when installed |
 | compliance | certification checklist derived from markets, radios, pre-certified modules, lithium cells, mains power, lasers; each item needs a plan |
@@ -77,6 +77,7 @@ cd my-device
 ph status                              # which gates pass, what blocks the current stage
 ph check --stage power                 # run one gate
 ph check                               # run every gate
+ph build                               # circuit code -> netlist; KiCad layout -> fab files
 ph parts                               # live stock, prices, lifecycle -> parts.lock.json
 ph report                              # REPORT.md: the whole device on one page
 ph bom -o bom.csv                      # BOM priced at the build quantity
@@ -84,6 +85,25 @@ ph doctor                              # installed checkers
 ```
 
 `ph check` and `ph status` exit non-zero when a gate is blocked, so they work in CI and git hooks.
+
+### Boards as code
+
+A board's `source` decides how `ph build` treats it:
+
+| Source | Build step |
+|---|---|
+| `hardware/main.py` | runs the SKiDL script with the same Python as `ph`; expects `main.net` next to it (or set `netlist:`) |
+| `.ato` file or folder with `ato.yaml` | runs `ato build` (atopile) |
+| KiCad project folder | nothing to generate |
+
+Then, if the board has a `.kicad_pcb` layout (in the source folder or set with `pcb:`), it exports
+Gerbers, drill and pick-and-place files to `hardware/fab/<board>/` with `kicad-cli`, or runs KiBot
+when a `*.kibot.yaml` config sits next to the source. The electronics gate reads the netlist and
+runs the checks above; a missing or stale netlist blocks or warns. Install SKiDL with
+`pip install "proto-harness[circuits]"`.
+
+Pin-level checks (pin types, voltage ratings) need real KiCad symbols with pin functions; the
+current checks work on net names, reference prefixes and part numbers.
 
 ### Live part data
 
@@ -137,7 +157,8 @@ my-device/
 Both are partway through, to show how gates block.
 
 - [`examples/soil-sensor`](examples/soil-sensor): battery Wi-Fi sensor with real electronic parts
-  priced live from LCSC. The power gate catches a battery life shortfall, and the parts gate shows a
+  priced live from LCSC and its board written in SKiDL (`hardware/main.py`; illustrative pin
+  numbers, not for fabrication). The power gate catches a battery life shortfall, and the parts gate shows a
   part that LCSC lookup can't find without a distributor key.
 - [`examples/pan-tilt-mount`](examples/pan-tilt-mount): motorized, mostly mechanical. The architecture gate catches
   a 3.3 V / 5 V logic mismatch and the parts gate catches an unchosen motor.
@@ -150,8 +171,8 @@ ph report examples/pan-tilt-mount
 ## Roadmap
 
 - More part sources (Nexar/Octopart, TME, Farnell) and alternate-part suggestions
-- atopile/SKiDL build step and Freerouting run inside the electronics gate
-- KiBot fab package generation and per-fab rule profiles
+- Freerouting run inside `ph build`, and pin-level netlist checks from KiCad symbols
+- Per-fab design-rule profiles
 - Enclosure generator from board outline and connector positions
 - ngspice checks for regulators and analog front ends
 - RFQ package generator for board houses and contract manufacturers
