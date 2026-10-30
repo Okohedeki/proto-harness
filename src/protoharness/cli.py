@@ -8,13 +8,13 @@ import sys
 from importlib import resources
 from pathlib import Path
 
-from . import __version__, tools
+from . import __version__, catalog, tools
 from .build import build_board, generator
 from .checks import ERROR, INFO, STAGE_NAMES, current_stage, run_all, run_stage
 from .lock import update_lock, write_lock
 from .model import DEVICE_FILE, LOCK_FILE, Device
 from .report import bom_csv, render
-from .sources import SOURCES, available_sources
+from .sources import SOURCES, SourceError, available_sources
 
 TAG = {ERROR: "[FAIL]", "warn": "[WARN]", INFO: "[info]"}
 
@@ -133,6 +133,8 @@ def cmd_parts(args: argparse.Namespace) -> int:
         return 2
     keyed = [s for s in ("digikey", "mouser") if s not in wanted]
     print(f"Sources: {', '.join(wanted)}" + (f"  (add keys to enable {', '.join(keyed)}; see README)" if keyed else ""))
+    if "jlcparts" not in wanted and not catalog.available():
+        print("Tip: `ph catalog update` adds the offline open catalog (exact matches, no key).")
     only = [p.strip() for p in args.only.split(",")] if args.only else None
 
     def show(pid: str, entry: dict) -> None:
@@ -151,6 +153,36 @@ def cmd_parts(args: argparse.Namespace) -> int:
     else:
         write_lock(d, lock)
         print(f"Wrote {d.root / LOCK_FILE}")
+    return 0
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
+    from .ui import serve
+    serve(Path(args.dir), port=args.port, open_browser=not args.no_open)
+    return 0
+
+
+def cmd_catalog(args: argparse.Namespace) -> int:
+    if args.action == "update":
+        print(f"Downloading the open jlcparts catalog to {catalog.cache_dir()} (about 250 MB, 2 GB once unpacked)")
+        meta = catalog.update(progress=lambda msg: print(f"  {msg}"))
+        print(f"Catalog ready: {meta['parts']:,} parts. `ph parts` now uses it as the 'jlcparts' source.")
+        return 0
+    meta = catalog.info()
+    if args.action == "info" or not args.text:
+        if meta is None:
+            print("No offline catalog. Run `ph catalog update` to download it.")
+            return 1
+        print(f"{meta['parts']:,} parts, {meta['age_days']:.1f} days old")
+        print(meta["path"])
+        return 0
+    rows = catalog.search(" ".join(args.text), limit=args.limit, in_stock=not args.all)
+    for r in rows:
+        price = f"${r['price_breaks'][0][1]:.4f}" if r["price_breaks"] else "?"
+        print(f"{r['lcsc']:<11} {r['mpn']:<26} {r['stock']:>9,} {price:>9}  {r['library']:<9} {r['package']:<18} "
+              f"{r['description'][:60]}")
+    if not rows:
+        print("no matches")
     return 0
 
 
@@ -198,9 +230,28 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("-o", "--out")
     s.set_defaults(fn=cmd_bom)
 
+    s = sub.add_parser("ui", help="live dashboard in the browser; redraws whenever a project file changes")
+    s.add_argument("dir", nargs="?", default=".")
+    s.add_argument("--port", type=int, default=8787)
+    s.add_argument("--no-open", action="store_true", help="don't open a browser tab")
+    s.set_defaults(fn=cmd_ui)
+
+    s = sub.add_parser("catalog", help="offline open parts catalog: update it, or search it for parts and alternates")
+    s.add_argument("action", choices=["update", "info", "search"])
+    s.add_argument("text", nargs="*", help="search: a part-number prefix, or words from the description")
+    s.add_argument("--limit", type=int, default=20)
+    s.add_argument("--all", action="store_true", help="include parts with no stock")
+    s.set_defaults(fn=cmd_catalog)
+
     args = p.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # part descriptions hold symbols a Windows console can't encode
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     try:
         return args.fn(args)
+    except SourceError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     except (FileNotFoundError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

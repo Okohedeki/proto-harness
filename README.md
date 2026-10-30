@@ -74,17 +74,32 @@ fail. `ph doctor` shows what is installed and how to get the rest:
 ```bash
 ph init my-device --name "My Device"   # device.yaml, CLAUDE.md, stage skills, folders
 cd my-device
+ph ui                                  # live dashboard in the browser, redraws on every change
 ph status                              # which gates pass, what blocks the current stage
 ph check --stage power                 # run one gate
 ph check                               # run every gate
 ph build                               # circuit code -> netlist; KiCad layout -> fab files
 ph parts                               # live stock, prices, lifecycle -> parts.lock.json
+ph catalog update                      # one-time download of the open offline parts catalog
+ph catalog search 3.3V LDO SOT-23-5    # find parts and in-stock alternates, no key needed
 ph report                              # REPORT.md: the whole device on one page
 ph bom -o bom.csv                      # BOM priced at the build quantity
 ph doctor                              # installed checkers
 ```
 
 `ph check` and `ph status` exit non-zero when a gate is blocked, so they work in CI and git hooks.
+
+### Dashboard
+
+`ph ui` serves a local page (127.0.0.1 only) with the whole device on one screen: the nine gates,
+a plain-language line saying what blocks right now, a map of blocks, interfaces and power rails
+with the blocking parts lit up, and tabs for parts (stock against the build quantity, price,
+sources, in-stock alternates), power (battery life against the requirement, rail headroom),
+certification, boards, catalog search and installed tools. It watches `device.yaml`,
+`parts.lock.json`, `hardware/`, `mechanical/`, `firmware/` and `docs/` and redraws within a second
+of any change, so it follows along while you or an assistant work. Buttons run `ph parts`,
+`ph build` and `ph report` in the background. Only the Python standard library is used, and
+the page works offline.
 
 ### Boards as code
 
@@ -120,11 +135,17 @@ The parts gate then:
 | Source | Setup | Notes |
 |---|---|---|
 | `lcsc` | none | Community mirror of the JLCPCB/LCSC catalog. Add `lcsc: C1234` to a part for an exact lookup; without it, only an exact MPN match counts, and the mirror's MPN search often misses. |
+| `jlcparts` | `ph catalog update` once | Offline copy of the whole JLCPCB/LCSC library (about 3 million parts with stock and price breaks) from the open [jlcparts](https://github.com/yaqwsx/jlcparts) project, refreshed daily upstream. About 250 MB to download and 2 GB on disk in your user cache folder. Exact MPN lookups work without an `lcsc:` code, and `ph catalog search` finds alternates. Refuses data older than 14 days. |
 | `digikey` | `DIGIKEY_CLIENT_ID`, `DIGIKEY_CLIENT_SECRET` | Free app at developer.digikey.com (Product Information API v4). |
 | `mouser` | `MOUSER_API_KEY` | Free Search API key from your Mouser account. |
 
+There is no open-source equivalent of DigiKey or Mouser themselves: stock and prices belong to
+each distributor. The two keyless sources cover the JLCPCB/LCSC catalog, which is also what a
+JLCPCB assembly order draws from. DigiKey and Mouser add western stock, lead times and lifecycle
+status when you have keys.
+
 Keys are read from environment variables only and never written to the project. Without keys,
-`ph parts` uses LCSC alone. Pick sources with `--sources lcsc,mouser`, refresh a few parts with
+`ph parts` uses LCSC, plus the offline catalog once it is downloaded. Pick sources with `--sources lcsc,mouser`, refresh a few parts with
 `--only part-a,part-b`, or preview with `--dry-run`. Set `no_lookup: true` on parts that no
 distributor carries (custom cells, machined parts, the PCB itself).
 
@@ -170,7 +191,7 @@ ph report examples/pan-tilt-mount
 
 ## Roadmap
 
-- More part sources (Nexar/Octopart, TME, Farnell) and alternate-part suggestions
+- More part sources (Nexar/Octopart, TME, Farnell) and automatic alternate suggestions in the parts gate
 - Freerouting run inside `ph build`, and pin-level netlist checks from KiCad symbols
 - Per-fab design-rule profiles
 - Enclosure generator from board outline and connector positions

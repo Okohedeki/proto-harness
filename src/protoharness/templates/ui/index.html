@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>proto-harness</title>
+<style>
+:root {
+  --canvas: #0a0c10; --surface: rgba(255,255,255,.035); --hair: rgba(255,255,255,.07);
+  --text-1: #eef1f5; --text-2: #9aa4b2; --text-3: #626c79;
+  --pass: #3ee0a1; --warn: #ffb547; --block: #ff5d73;
+  --sans: "Inter", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --canvas: #f5f6f8; --surface: rgba(10,20,40,.04); --hair: rgba(10,20,40,.09);
+    --text-1: #121720; --text-2: #4d5764; --text-3: #7c8591;
+    --pass: #0a9a63; --warn: #b26b00; --block: #d42a46; color-scheme: light;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--canvas); color: var(--text-1); font: 13px/1.5 var(--sans); }
+body { min-height: 100vh; }
+.mono, td.n, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--text-1); outline-offset: 3px; border-radius: 4px; }
+a { color: inherit; }
+
+.wrap { max-width: 1440px; margin: 0 auto; padding: 28px 32px 64px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
+.eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+.eyebrow .live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--pass);
+  margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 10px var(--pass); animation: pulse 2.4s ease-in-out infinite; }
+.eyebrow .live.off { background: var(--text-3); box-shadow: none; animation: none; }
+@keyframes pulse { 50% { opacity: .35; } }
+h1 { font-size: 30px; font-weight: 600; letter-spacing: -.01em; margin: 6px 0 0; line-height: 1.2; }
+.verdict { font-size: 20px; font-weight: 500; margin: 14px 0 0; max-width: 900px; line-height: 1.35; }
+.verdict b { font-weight: 600; }
+.verdict .tone-block { color: var(--block); } .verdict .tone-pass { color: var(--pass); }
+.facts { margin-top: 10px; color: var(--text-2); display: flex; gap: 22px; flex-wrap: wrap; }
+.facts span b { color: var(--text-1); font-weight: 500; font-family: var(--mono); }
+.actions { display: flex; gap: 18px; align-items: center; color: var(--text-2); padding-top: 4px; }
+.actions button { color: var(--text-2); transition: color .2s; }
+.actions button:hover { color: var(--text-1); }
+.actions button[disabled] { opacity: .4; cursor: default; }
+
+/* gate rail */
+.rail { position: relative; display: grid; grid-template-columns: repeat(9, 1fr); margin: 34px 0 8px; }
+.rail::before { content: ""; position: absolute; left: 5.5%; right: 5.5%; top: 11px; height: 1px; background: var(--hair); }
+.rail .fill { position: absolute; left: 5.5%; top: 11px; height: 1px; background: var(--pass);
+  box-shadow: 0 0 8px var(--pass); transition: width .6s cubic-bezier(.2,.7,.2,1); }
+.gate { position: relative; text-align: center; padding: 0 4px 6px; color: var(--text-3); }
+.gate .dot { width: 23px; height: 23px; margin: 0 auto; border-radius: 50%; display: grid; place-items: center;
+  background: var(--canvas); border: 1px solid var(--hair); font: 600 10px var(--mono); transition: all .3s; }
+.gate.pass .dot { border-color: var(--pass); color: var(--pass); }
+.gate.blocked .dot { border-color: color-mix(in srgb, var(--block) 45%, transparent); color: var(--block); }
+.gate.current .dot { background: var(--block); color: var(--canvas); border-color: var(--block);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--block) 18%, transparent), 0 0 22px var(--block); }
+.gate .t { margin-top: 8px; font-size: 12px; color: var(--text-2); line-height: 1.25; }
+.gate.sel .t { color: var(--text-1); font-weight: 600; }
+.gate .c { font: 11px var(--mono); margin-top: 2px; }
+.gate .c .e { color: var(--block); } .gate .c .w { color: var(--warn); }
+.gate.sel::after { content: ""; position: absolute; left: 30%; right: 30%; bottom: -2px; height: 2px;
+  background: var(--text-1); border-radius: 2px; }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 28px; margin-top: 26px; }
+.map { position: relative; min-height: 300px; padding-bottom: 34px; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(1200px 500px at 30% 40%, var(--surface), transparent 70%); }
+.map svg { width: 100%; height: 100%; display: block; }
+.map .grid line { stroke: var(--hair); stroke-width: 1; }
+.map .legend { position: absolute; left: 18px; bottom: 14px; color: var(--text-3); font-size: 11px; display: flex; gap: 16px; }
+.map .legend i { display: inline-block; width: 18px; height: 0; border-top: 1.5px solid var(--text-2); vertical-align: 3px; margin-right: 6px; }
+.map .legend i.d { border-top-style: dashed; }
+.edge { fill: none; stroke: var(--text-3); stroke-width: 1.4; opacity: .75; transition: opacity .3s; }
+.edge.power { stroke-dasharray: 5 5; animation: flow 1.6s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -20; } }
+.edge-label { fill: var(--text-3); font: 10px var(--mono); }
+.node rect, .node circle { fill: var(--canvas); stroke: var(--text-3); stroke-width: 1; transition: all .3s; }
+.node text { fill: var(--text-1); font: 600 12px var(--sans); }
+.node text.k { fill: var(--text-3); font: 10px var(--mono); font-weight: 400; }
+.node { cursor: pointer; transition: opacity .3s; }
+.node.err rect, .node.err circle { stroke: var(--block); filter: drop-shadow(0 0 8px var(--block)); }
+.node.sel rect, .node.sel circle { stroke: var(--text-1); stroke-width: 1.6; }
+.node .badge { font: 600 10px var(--mono); }
+svg.focus .node:not(.sel):not(.nb) { opacity: .28; } svg.focus .edge:not(.hot) { opacity: .12; }
+
+.panel { min-width: 0; }
+.panel h2 { font-size: 16px; font-weight: 600; margin: 4px 0 2px; }
+.panel .sub { color: var(--text-3); font-size: 12px; margin-bottom: 14px; }
+.finding { display: grid; grid-template-columns: 14px 1fr; gap: 10px; padding: 9px 0; color: var(--text-2); }
+.finding + .finding { border-top: 1px solid var(--hair); }
+.finding .m { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; background: var(--text-3); }
+.finding.error { color: var(--text-1); } .finding.error .m { background: var(--block); box-shadow: 0 0 8px var(--block); }
+.finding.warn .m { background: var(--warn); }
+.finding .stg { font-size: 11px; color: var(--text-3); }
+.clear { color: var(--text-3); padding: 30px 0; }
+.clear b { color: var(--pass); font-weight: 600; }
+
+/* sections */
+nav.tabs { display: flex; gap: 26px; margin: 46px 0 18px; flex-wrap: wrap; }
+nav.tabs button { font-size: 15px; color: var(--text-3); padding-bottom: 6px; border-bottom: 2px solid transparent; transition: all .2s; }
+nav.tabs button.on { color: var(--text-1); border-color: var(--text-1); }
+nav.tabs button .cnt { font: 11px var(--mono); margin-left: 6px; color: var(--text-3); }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-weight: 500; font-size: 11px; color: var(--text-3); letter-spacing: .06em; text-transform: uppercase; padding: 0 12px 10px 0; }
+td { padding: 9px 12px 9px 0; border-top: 1px solid var(--hair); vertical-align: top; color: var(--text-2); }
+td.id { color: var(--text-1); font-weight: 500; }
+td.n, th.n { text-align: right; }
+.bar { position: relative; height: 5px; border-radius: 3px; background: var(--hair); min-width: 90px; margin-top: 7px; }
+.bar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width .6s cubic-bezier(.2,.7,.2,1); }
+.bar > s { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--text-2); }
+.ok { color: var(--pass); } .bad { color: var(--block); } .meh { color: var(--warn); } .dim { color: var(--text-3); }
+.tag { font: 11px var(--mono); color: var(--text-3); }
+.alts { margin: 6px 0 2px; font-size: 12px; }
+.alts div { display: grid; grid-template-columns: 80px 1fr 90px 80px; gap: 10px; padding: 3px 0; color: var(--text-2); }
+.linkish { color: var(--text-2); text-decoration: underline; text-decoration-color: var(--hair); text-underline-offset: 3px; }
+.linkish:hover { color: var(--text-1); }
+
+.big { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 28px; margin-bottom: 26px; }
+.big .v { font: 600 40px/1.1 var(--mono); letter-spacing: -.02em; }
+.big .l { color: var(--text-3); font-size: 12px; margin-top: 4px; }
+
+.search { display: flex; gap: 10px; margin: 0 0 14px; }
+.search input { flex: 1; max-width: 520px; background: var(--surface); color: var(--text-1); border: 1px solid var(--hair);
+  border-radius: 8px; padding: 9px 12px; font: 13px var(--sans); }
+
+.log { position: fixed; right: 20px; bottom: 20px; width: min(560px, calc(100vw - 32px)); max-height: 46vh; overflow: auto;
+  background: color-mix(in srgb, var(--canvas) 78%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-radius: 12px; padding: 14px 16px; box-shadow: 0 20px 60px rgba(0,0,0,.45); display: none; }
+.log.show { display: block; }
+.log pre { margin: 8px 0 0; font: 11.5px/1.5 var(--mono); color: var(--text-2); white-space: pre-wrap; }
+.log .h { display: flex; justify-content: space-between; color: var(--text-1); font-weight: 600; }
+
+.broken { margin-top: 60px; }
+.broken pre { font: 12px var(--mono); color: var(--block); white-space: pre-wrap; }
+.skel { height: 440px; border-radius: 14px; background: linear-gradient(100deg, var(--surface) 30%, transparent 50%, var(--surface) 70%);
+  background-size: 300% 100%; animation: sh 1.6s linear infinite; }
+@keyframes sh { to { background-position: -150% 0; } }
+
+@media (max-width: 960px) {
+  .wrap { padding: 20px 16px 48px; }
+  .hero { grid-template-columns: 1fr; }
+  .map { min-height: 0; overflow-x: auto; } .map svg { min-width: 680px; height: auto; }
+  .rail { grid-template-columns: repeat(9, minmax(64px, 1fr)); overflow-x: auto; }
+  .rail::before, .rail .fill { display: none; }
+  .gate .t { font-size: 11px; }
+  .tablewrap { overflow-x: auto; }
+  h1 { font-size: 24px; } .verdict { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="skel" style="margin-top:80px"></div></div>
+<div class="log" id="log" role="status" aria-live="polite"></div>
+
+<script>
+const S = { data: null, stage: null, tab: "parts", block: null, alts: {}, query: "", results: null, live: false };
+const $ = (s, el = document) => el.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (v, d = 2) => v == null || isNaN(v) ? "—" : Number(v).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const int = v => v == null ? "—" : Number(v).toLocaleString();
+
+async function load() {
+  try {
+    const r = await fetch("/api/state");
+    S.data = await r.json();
+  } catch (e) { S.data = { ok: false, error: "Lost contact with `ph ui`. Is it still running?" }; }
+  render();
+}
+
+function connect() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("change", load);
+  es.onopen = () => { S.live = true; liveDot(); };
+  es.onerror = () => { S.live = false; liveDot(); };
+}
+function liveDot() { const d = $(".live"); if (d) d.classList.toggle("off", !S.live); }
+
+/* which blocks a finding talks about: their id or their part id, as a whole word */
+function mentions(msg, b) {
+  const ids = [b.id, b.part].filter(Boolean);
+  return ids.some(id => new RegExp(`(^|[^\\w-])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\w-])`).test(msg));
+}
+function blockFindings(b) {
+  const out = [];
+  for (const st of S.data.stages) for (const f of st.findings) if (f.level !== "info" && mentions(f.message, b)) out.push({ ...f, stage: st.title });
+  return out;
+}
+
+function render() {
+  const D = S.data, app = $("#app");
+  if (!D) return;
+  if (!D.ok) { app.innerHTML = `<header><div><div class="eyebrow"><span class="live"></span>proto-harness</div><h1>device.yaml needs a fix</h1></div></header>
+    <div class="broken"><p class="dim">The dashboard redraws as soon as the file loads again.</p><pre>${esc(D.error)}</pre></div>`; liveDot(); renderLog(); return; }
+  // follow the current stage until the viewer picks one
+  if (!S.pinned || !D.stages.find(s => s.stage === S.stage)) S.stage = D.current || D.stages[D.stages.length - 1].stage;
+  const cur = D.stages.find(s => s.stage === D.current);
+  const passed = D.stages.findIndex(s => !s.passed);
+  const fillPct = (passed < 0 ? 8 : passed) / 8 * 89;
+  const headline = cur
+    ? `<b class="tone-block">${esc(cur.title)}</b> is blocking: ${esc(firstError(cur))}`
+    : `<b class="tone-pass">Every gate passes.</b> Order prototypes, and keep the checks running after each change.`;
+  const target = D.requirements.target_unit_cost_usd;
+  app.innerHTML = `
+  <header>
+    <div>
+      <div class="eyebrow"><span class="live${S.live ? "" : " off"}"></span>proto-harness · ${esc(shortPath(D.root))}</div>
+      <h1>${esc(D.name)}</h1>
+      <p class="verdict">${headline}</p>
+      <div class="facts">
+        <span>Build <b>${int(D.quantity)}</b> units</span>
+        <span>Parts <b>$${fmt(D.cost)}</b>/unit${target ? ` <span class="${D.cost > target ? "bad" : "dim"}">target $${fmt(target)}</span>` : ""}</span>
+        <span>Gates <b>${D.stages.filter(s => s.passed).length}/9</b></span>
+      </div>
+    </div>
+    <div class="actions">${actionButtons(D)}</div>
+  </header>
+  <div class="rail" role="tablist" aria-label="Stage gates">
+    <div class="fill" style="width:${fillPct}%"></div>
+    ${D.stages.map((s, i) => `<button class="gate ${s.passed ? "pass" : "blocked"} ${s.stage === D.current ? "current" : ""} ${s.stage === S.stage ? "sel" : ""}"
+        role="tab" aria-selected="${s.stage === S.stage}" data-stage="${s.stage}">
+      <div class="dot">${s.passed ? "✓" : i + 1}</div><div class="t">${esc(s.title)}</div>
+      <div class="c">${s.errors ? `<span class="e">${s.errors} block</span>` : ""}${s.errors && s.warnings ? " · " : ""}${s.warnings ? `<span class="w">${s.warnings} warn</span>` : ""}</div>
+    </button>`).join("")}
+  </div>
+  <section class="hero">
+    <div class="map">${mapSvg(D)}
+      <div class="legend"><span><i></i>signal</span><span><i class="d"></i>power</span><span class="bad">● blocking</span><span class="meh">● warning</span></div>
+    </div>
+    <div class="panel" aria-live="polite">${panel(D)}</div>
+  </section>
+  <nav class="tabs" role="tablist">${tabs(D)}</nav>
+  <section id="tab">${tabBody(D)}</section>`;
+  bind();
+  renderLog();
+}
+
+function firstError(st) { const f = st.findings.find(f => f.level === "error"); return f ? f.message : ""; }
+function shortPath(p) { const parts = String(p).split(/[\\/]/); return parts.slice(-2).join("/"); }
+
+function actionButtons(D) {
+  const busy = D.job && D.job.running;
+  return [["parts", "Refresh parts"], ["build", "Build boards"], ["report", "Write report"]]
+    .map(([k, l]) => `<button data-run="${k}" ${busy ? "disabled" : ""}>${busy && D.job.name === k ? l + "…" : l}</button>`).join("");
+}
+
+/* ---------- device map ---------- */
+function mapSvg(D) {
+  const nodes = new Map();
+  const spec = D.power.spec || {};
+  for (const s of spec.sources || []) nodes.set(s.id, { id: s.id, kind: s.kind || "source", type: "source" });
+  for (const b of D.blocks) if (b.kind !== "mechanical") nodes.set(b.id, { id: b.id, kind: b.kind, part: b.part, type: "block" });
+  for (const r of spec.rails || []) nodes.set("rail:" + r.id, { id: r.id, kind: `${r.voltage_v} V`, type: "rail" });
+  const edges = [];
+  for (const i of D.interfaces) if (nodes.has(i.from) && nodes.has(i.to)) edges.push({ a: i.from, b: i.to, kind: i.kind, power: i.kind === "power" });
+  for (const r of spec.rails || []) if (nodes.has(r.from) || nodes.has("rail:" + r.from)) edges.push({ a: nodes.has(r.from) ? r.from : "rail:" + r.from, b: "rail:" + r.id, power: true });
+  for (const l of spec.loads || []) if (nodes.has(l.block) && nodes.has("rail:" + l.rail)) edges.push({ a: "rail:" + l.rail, b: l.block, power: true });
+  if (!nodes.size) return `<svg viewBox="0 0 900 300">${grid(900, 300)}<text x="450" y="150" text-anchor="middle" fill="var(--text-3)">Add blocks, interfaces and power to device.yaml to see the device here.</text></svg>`;
+  // layer by longest path from nodes with no incoming edge
+  const layer = new Map([...nodes.keys()].map(k => [k, 0]));
+  for (let pass = 0; pass < nodes.size; pass++) {
+    let moved = false;
+    for (const e of edges) if (layer.get(e.b) < layer.get(e.a) + 1 && layer.get(e.a) + 1 < nodes.size) { layer.set(e.b, layer.get(e.a) + 1); moved = true; }
+    if (!moved) break;
+  }
+  const cols = [];
+  for (const [k, l] of layer) (cols[l] ||= []).push(k);
+  const used = cols.filter(Boolean);
+  const W = Math.max(560, Math.min(980, used.length * 170)), padX = 70, padY = 40;
+  const H = Math.max(280, Math.max(...used.map(c => c.length)) * 92 + padY);
+  const pos = new Map();
+  used.forEach((col, ci) => col.forEach((k, ri) => pos.set(k, {
+    x: used.length === 1 ? W / 2 : padX + ci * (W - 2 * padX) / (used.length - 1),
+    y: padY / 2 + (ri + 0.5) * (H - padY) / col.length,
+  })));
+  const status = new Map();
+  for (const [k, n] of nodes) if (n.type === "block") {
+    const fs = blockFindings({ id: n.id, part: n.part });
+    status.set(k, fs.some(f => f.level === "error") ? "err" : fs.length ? "wrn" : "");
+  }
+  const sel = S.block && nodes.has(S.block) ? S.block : null;
+  const nb = new Set(sel ? edges.flatMap(e => e.a === sel ? [e.b] : e.b === sel ? [e.a] : []) : []);
+  const edgeSvg = edges.map(e => {
+    const p = pos.get(e.a), q = pos.get(e.b), mx = (p.x + q.x) / 2;
+    const hot = sel && (e.a === sel || e.b === sel);
+    return `<path class="edge ${e.power ? "power" : ""} ${hot ? "hot" : ""}" d="M${p.x},${p.y} C${mx},${p.y} ${mx},${q.y} ${q.x},${q.y}"/>` +
+      (e.kind && !e.power ? `<text class="edge-label" x="${mx}" y="${(p.y + q.y) / 2 - 6}" text-anchor="middle">${esc(e.kind)}</text>` : "");
+  }).join("");
+  const nodeSvg = [...nodes].map(([k, n]) => {
+    const { x, y } = pos.get(k), st = status.get(k) || "";
+    const cls = `node ${st} ${k === sel ? "sel" : ""} ${nb.has(k) ? "nb" : ""}`;
+    if (n.type === "rail") return `<g class="${cls}" data-node="${esc(k)}"><circle cx="${x}" cy="${y}" r="17"/>
+      <text x="${x}" y="${y + 4}" text-anchor="middle" style="font-size:11px">${esc(n.id)}</text>
+      <text class="k" x="${x}" y="${y + 32}" text-anchor="middle">${esc(n.kind)}</text></g>`;
+    const w = Math.max(96, n.id.length * 8 + 30), h = 44;
+    const mark = st === "err" ? `<circle cx="${x + w / 2 - 9}" cy="${y - h / 2 + 9}" r="3.5" fill="var(--block)"/>` : st === "wrn" ? `<circle cx="${x + w / 2 - 9}" cy="${y - h / 2 + 9}" r="3.5" fill="var(--warn)"/>` : "";
+    return `<g class="${cls}" data-node="${esc(k)}" tabindex="0" role="button" aria-label="${esc(n.id)}">
+      <rect x="${x - w / 2}" y="${y - h / 2}" width="${w}" height="${h}" rx="${n.type === "source" ? 22 : 8}"/>${mark}
+      <text x="${x}" y="${y - 2}" text-anchor="middle">${esc(n.id)}</text>
+      <text class="k" x="${x}" y="${y + 13}" text-anchor="middle">${esc(n.kind || "")}</text></g>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="${sel ? "focus" : ""}" aria-label="Device map">${grid(W, H)}${edgeSvg}${nodeSvg}</svg>`;
+}
+function grid(W, H) {
+  let g = '<g class="grid">';
+  for (let x = 0; x <= W; x += 40) g += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" opacity=".35"/>`;
+  for (let y = 0; y <= H; y += 40) g += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" opacity=".35"/>`;
+  return g + "</g>";
+}
+
+/* ---------- right panel ---------- */
+function panel(D) {
+  if (S.block) {
+    const b = D.blocks.find(b => b.id === S.block) || { id: S.block };
+    const fs = blockFindings(b);
+    const part = b.part && D.parts.find(p => p.id === b.part);
+    return `<h2>${esc(b.id)}</h2><div class="sub">${esc(b.kind || "")}${part ? ` · <span class="mono">${esc(part.mpn)}</span>` : ""} · <button class="linkish" data-clear>show the stage</button></div>
+      ${fs.length ? fs.map(f => finding(f, f.stage)).join("") : `<div class="clear"><b>Nothing flags this block.</b></div>`}`;
+  }
+  const st = D.stages.find(s => s.stage === S.stage);
+  const shown = st.findings;
+  return `<h2>${esc(st.title)}</h2>
+    <div class="sub">${st.passed ? '<span class="ok">gate passes</span>' : `<span class="bad">gate blocked</span>`} · <span class="mono">ph check --stage ${esc(st.stage)}</span></div>
+    ${shown.length ? shown.map(f => finding(f)).join("") : `<div class="clear"><b>Clean.</b> Nothing to fix at this stage.</div>`}`;
+}
+function finding(f, stage) {
+  return `<div class="finding ${f.level}"><span class="m"></span><div>${esc(f.message)}${stage ? `<div class="stg">${esc(stage)}</div>` : ""}</div></div>`;
+}
+
+/* ---------- lower sections ---------- */
+function tabs(D) {
+  const short = D.parts.filter(p => p.live && p.stock < p.need).length;
+  const list = [["parts", "Parts", short ? `${short} short` : D.parts.length], ["power", "Power", D.power.rails.length + " rails"],
+    ["certs", "Certification", D.certs.length], ["boards", "Boards", D.boards.length], ["catalog", "Find parts", D.catalog ? "offline" : ""],
+    ["tools", "Tools", D.tools.filter(t => t.found).length + "/" + D.tools.length]];
+  return list.map(([k, l, c]) => `<button data-tab="${k}" class="${S.tab === k ? "on" : ""}" role="tab" aria-selected="${S.tab === k}">${l}<span class="cnt">${esc(c)}</span></button>`).join("");
+}
+function tabBody(D) {
+  return ({ parts: partsTab, power: powerTab, certs: certsTab, boards: boardsTab, catalog: catalogTab, tools: toolsTab }[S.tab] || partsTab)(D);
+}
+
+function partsTab(D) {
+  const maxLog = Math.log10(Math.max(10, ...D.parts.map(p => (p.stock || 0) + 1)));
+  const rows = D.parts.map(p => {
+    let stock = `<span class="dim">${p.placeholder ? "placeholder" : "not looked up"}</span>`;
+    if (p.live) {
+      const short = p.stock < p.need, w = Math.log10((p.stock || 0) + 1) / maxLog * 100, mark = Math.log10(p.need + 1) / maxLog * 100;
+      stock = `<span class="mono ${p.stock === 0 ? "bad" : short ? "meh" : ""}">${int(p.stock)}</span> <span class="tag">need ${int(p.need)}</span>
+        <div class="bar"><i style="width:${w}%;background:${p.stock === 0 ? "var(--block)" : short ? "var(--warn)" : "var(--pass)"}"></i><s style="left:${mark}%"></s></div>
+        ${short && D.catalog ? `<button class="linkish" data-alts="${esc(p.id)}" style="font-size:12px;margin-top:6px">in-stock alternates</button>` : ""}
+        ${S.alts[p.id] ? altList(S.alts[p.id]) : ""}`;
+    }
+    const life = p.lifecycle && p.lifecycle !== "active" ? `<span class="meh">${esc(p.lifecycle)}</span>` : `<span class="dim">${esc(p.lifecycle || "")}</span>`;
+    return `<tr><td class="id">${esc(p.id)}<div class="tag">${esc(p.category)}</div></td><td class="mono">${esc(p.mpn)}</td>
+      <td style="min-width:200px">${stock}</td><td class="n">${p.unit_cost_usd == null ? "—" : "$" + fmt(p.unit_cost_usd, 3)}</td>
+      <td class="n">${p.line_cost_usd == null ? "—" : "$" + fmt(p.line_cost_usd)}</td>
+      <td>${p.offers.length ? p.offers.map(o => `<a class="linkish mono" href="${esc(o.url)}" target="_blank" rel="noopener">${esc(o.supplier)} ${esc(o.sku)}</a>`).join("<br>") : esc(p.suppliers.join(", "))}
+        <div class="tag">${esc(p.price_source)}${p.age_days != null ? ` · ${fmt(p.age_days, 0)} d old` : ""}</div></td><td>${life}</td></tr>`;
+  }).join("");
+  return `<div class="tablewrap"><table><thead><tr><th>Part</th><th>MPN</th><th>Stock vs build</th><th class="n">Unit</th><th class="n">Per device</th><th>Sources</th><th>Lifecycle</th></tr></thead>
+    <tbody>${rows}</tbody><tfoot><tr><td></td><td></td><td></td><td></td><td class="n mono" style="color:var(--text-1)">$${fmt(D.cost)}</td><td colspan="2" class="dim">priced at ${int(D.quantity)} units</td></tr></tfoot></table></div>`;
+}
+function altList(a) {
+  if (a === "loading") return `<div class="alts dim">searching the catalog…</div>`;
+  if (a.error) return `<div class="alts bad">${esc(a.error)}</div>`;
+  if (!a.length) return `<div class="alts dim">no in-stock part with that prefix</div>`;
+  return `<div class="alts">${a.slice(0, 5).map(r => `<div><span class="mono">${esc(r.lcsc)}</span><span class="mono" style="color:var(--text-1)">${esc(r.mpn)}</span>
+    <span class="mono ok">${int(r.stock)}</span><span class="mono">$${fmt(r.price_breaks[0]?.[1], 4)}</span></div>`).join("")}</div>`;
+}
+
+function powerTab(D) {
+  const P = D.power, need = D.requirements.battery_life_days;
+  if (P.error) return `<p class="bad">${esc(P.error)}</p>`;
+  const big = P.sources.map(s => {
+    const life = s.life_days;
+    const ok = life == null || !need || life >= need;
+    return `<div><div class="v ${life == null ? "" : ok ? "ok" : "bad"}">${life == null ? fmt(s.avg_ma, 3) + " mA" : fmt(life, 0) + " days"}</div>
+      <div class="l">${esc(s.id)} · ${esc(s.kind)}${life != null && need ? ` · needs ${int(need)} days` : ""} · average ${fmt(s.avg_ma, 3)} mA, peak ${fmt(s.peak_ma, 0)} mA</div>
+      ${life != null && need ? `<div class="bar" style="max-width:320px"><i style="width:${Math.min(100, life / need * 100)}%;background:${ok ? "var(--pass)" : "var(--block)"}"></i></div>` : ""}</div>`;
+  }).join("");
+  const rows = P.rails.map(r => {
+    const pct = r.max_current_ma ? r.peak_ma / r.max_current_ma * 100 : null;
+    const col = pct == null ? "var(--text-3)" : pct > 100 ? "var(--block)" : pct > 80 ? "var(--warn)" : "var(--pass)";
+    return `<tr><td class="id">${esc(r.rail)}</td><td class="n">${fmt(r.voltage_v, 2)} V</td><td class="n">${fmt(r.peak_ma, 1)}</td><td class="n">${fmt(r.avg_ma, 3)}</td>
+      <td style="min-width:180px"><span class="mono">${r.max_current_ma == null ? "no limit set" : fmt(pct, 0) + "% of " + fmt(r.max_current_ma, 0) + " mA"}</span>
+      <div class="bar"><i style="width:${Math.min(100, pct || 0)}%;background:${col}"></i></div></td><td class="dim">${esc(r.parent || "")}</td></tr>`;
+  }).join("");
+  return `<div class="big">${big}</div><div class="tablewrap"><table><thead><tr><th>Rail</th><th class="n">Volts</th><th class="n">Peak mA</th><th class="n">Avg mA</th><th>Headroom</th><th>Fed from</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function certsTab(D) {
+  if (!D.certs.length) return `<p class="dim">No markets or traits that need certification yet. Set requirements.markets in device.yaml.</p>`;
+  return `<p class="dim" style="margin-top:0">Starting checklist, not legal advice. Confirm with an accredited test lab.</p><div class="tablewrap"><table><thead><tr><th>Item</th><th>Why</th><th>Plan</th></tr></thead><tbody>
+    ${D.certs.map(c => `<tr><td class="id">${esc(c.name)}</td><td>${esc(c.why)}</td><td>${c.plan ? esc(c.plan) : '<span class="meh">none yet</span>'}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function boardsTab(D) {
+  if (!D.boards.length) return `<p class="dim">No boards yet. Add one under boards: in device.yaml with a source file, then Build boards.</p>`;
+  return `<div class="big">${D.boards.map(b => `<div><div class="v">${b.components ?? "—"}<span class="dim" style="font-size:18px"> parts</span> ${b.nets ?? "—"}<span class="dim" style="font-size:18px"> nets</span></div>
+    <div class="l">${esc(b.id)} · ${esc(b.generator)} · <span class="mono">${esc(b.source || "")}</span></div>
+    <div class="l">${b.netlist_age_s == null ? '<span class="bad">not built yet</span>' : `netlist built ${ago(b.netlist_age_s)}`} · ${b.layout.length ? "layout " + esc(b.layout.join(", ")) : '<span class="meh">no layout yet</span>'}</div></div>`).join("")}</div>`;
+}
+function ago(s) { return s < 90 ? "just now" : s < 5400 ? Math.round(s / 60) + " min ago" : s < 129600 ? Math.round(s / 3600) + " h ago" : Math.round(s / 86400) + " days ago"; }
+
+function catalogTab(D) {
+  if (!D.catalog) return `<p class="dim">The offline catalog holds the whole JLCPCB/LCSC library with stock and prices, searchable without keys.<br>Run <span class="mono">ph catalog update</span> once (about 250 MB download).</p>`;
+  const res = S.results;
+  return `<form class="search" id="find"><input name="q" value="${esc(S.query)}" placeholder="part-number prefix, or words like: 3.3V LDO SOT-23-5" aria-label="Search the catalog" autocomplete="off"></form>
+    <div class="tag" style="margin-bottom:12px">${int(D.catalog.parts)} parts · ${fmt(D.catalog.age_days, 1)} days old · in stock only</div>
+    ${res === "loading" ? '<p class="dim">searching…</p>' : res && res.error ? `<p class="bad">${esc(res.error)}</p>` : res ? `<div class="tablewrap"><table><thead><tr><th>LCSC</th><th>MPN</th><th class="n">Stock</th><th class="n">1 pc</th><th>Library</th><th>Package</th><th>Description</th></tr></thead><tbody>
+    ${res.map(r => `<tr><td class="mono">${esc(r.lcsc)}</td><td class="mono id">${esc(r.mpn)}<div class="tag">${esc(r.manufacturer)}</div></td><td class="n">${int(r.stock)}</td><td class="n">$${fmt(r.price_breaks[0]?.[1], 4)}</td>
+      <td>${esc(r.library)}</td><td class="mono">${esc(r.package)}</td><td>${esc(r.description)}${r.datasheet ? ` <a class="linkish" href="${esc(r.datasheet)}" target="_blank" rel="noopener">datasheet</a>` : ""}</td></tr>`).join("") || '<tr><td colspan="7" class="dim">no matches</td></tr>'}</tbody></table></div>` : ""}`;
+}
+
+function toolsTab(D) {
+  return `<p class="dim" style="margin-top:0">Optional open-source checkers. Missing ones leave their checks unverified; <span class="mono">ph doctor</span> shows how to install them.</p>
+    <div class="facts" style="gap:28px">${D.tools.map(t => `<span class="${t.found ? "ok" : "dim"}">${t.found ? "●" : "○"} <span class="mono">${esc(t.key)}</span></span>`).join("")}</div>`;
+}
+
+/* ---------- job log ---------- */
+function renderLog() {
+  const el = $("#log"), j = S.data && S.data.job;
+  if (!j || S.hideLog === j.name + j.ok + j.running) { el.classList.remove("show"); return; }
+  el.classList.add("show");
+  el.innerHTML = `<div class="h"><span>ph ${esc(j.name)} ${j.running ? '<span class="dim">running…</span>' : j.ok ? '<span class="ok">done</span>' : '<span class="bad">failed</span>'}</span>
+    <button data-hidelog aria-label="Close">close</button></div><pre>${esc(j.log || "")}</pre>`;
+  $("[data-hidelog]", el).onclick = () => { S.hideLog = j.name + j.ok + j.running; el.classList.remove("show"); };
+}
+
+/* ---------- events ---------- */
+function bind() {
+  document.querySelectorAll("[data-stage]").forEach(b => b.onclick = () => { S.stage = b.dataset.stage; S.pinned = S.stage !== S.data.current; S.block = null; render(); });
+  document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+  document.querySelectorAll("[data-node]").forEach(n => {
+    const pick = () => { const k = n.dataset.node; S.block = k.startsWith("rail:") ? null : (S.block === k ? null : k); render(); };
+    n.onclick = pick; n.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } };
+  });
+  const c = $("[data-clear]"); if (c) c.onclick = () => { S.block = null; render(); };
+  document.querySelectorAll("[data-run]").forEach(b => b.onclick = async () => {
+    S.hideLog = null;
+    await fetch("/api/run/" + b.dataset.run, { method: "POST", headers: { "X-PH": "1" } });
+    load();
+  });
+  document.querySelectorAll("[data-alts]").forEach(b => b.onclick = async () => {
+    const p = S.data.parts.find(p => p.id === b.dataset.alts);
+    S.alts[p.id] = "loading"; render();
+    const prefix = p.mpn.replace(/[-_ ].*$/, "").slice(0, Math.max(4, p.mpn.length - 4));
+    try { const r = await (await fetch("/api/catalog?q=" + encodeURIComponent(prefix))).json(); S.alts[p.id] = r.error ? r : r.results; }
+    catch (e) { S.alts[p.id] = { error: String(e) }; }
+    render();
+  });
+  const f = $("#find");
+  if (f) {
+    f.onsubmit = async e => {
+      e.preventDefault(); S.query = f.q.value.trim(); if (!S.query) return;
+      S.results = "loading"; render();
+      try { const r = await (await fetch("/api/catalog?q=" + encodeURIComponent(S.query))).json(); S.results = r.error ? r : r.results; }
+      catch (err) { S.results = { error: String(err) }; }
+      render(); const i = $("#find input"); if (i) i.focus();
+    };
+  }
+}
+
+load(); connect();
+</script>
+</body>
+</html>

@@ -12,6 +12,9 @@ description: Pick real, in-stock parts for every block with manufacturer part nu
   DigiKey and Mouser need the user's API keys in environment variables (never ask for them in chat
   or write them to files). Never invent numbers; typed `unit_cost_usd` is only for parts no source
   carries, marked `no_lookup: true`, with the quote source in `notes`.
+- With the offline catalog (`ph catalog update`, about 250 MB once), lookups are exact without
+  `lcsc:` codes, and `ph catalog search` finds candidates and in-stock alternates by part-number
+  prefix or description words (for example `3.3V LDO SOT-23-5`). Check each candidate's datasheet.
 - Re-run `ph parts` before ordering and whenever the gate says data is stale.
 - Prefer parts with two or more suppliers, an active lifecycle and healthy stock.
 - If the board house offers assembly, prefer parts it stocks to avoid sourcing fees.

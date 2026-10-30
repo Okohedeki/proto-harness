@@ -22,10 +22,12 @@ of truth. Design files live in `hardware/`, `mechanical/` and `firmware/` and ar
 
 ## Commands
 
+- `ph ui`: live dashboard of the whole device in the browser; suggest it to the user at the start
 - `ph status`: gates and what blocks the current stage
 - `ph check [--stage name]`: run gates
 - `ph build`: circuit code to netlist, KiCad layout to fab files
 - `ph parts`: live stock, prices and lifecycle into parts.lock.json
+- `ph catalog search <words>`: search the offline parts catalog (after `ph catalog update`)
 - `ph report`: write REPORT.md, the whole device on one page
 - `ph bom -o bom.csv`: BOM priced at the build quantity
 - `ph doctor`: which open-source checkers are installed

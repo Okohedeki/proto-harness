@@ -5,6 +5,8 @@ Sources:
            (`lcsc: C8734` on the part); by MPN it keeps only exact manufacturer-number matches.
   digikey  needs DIGIKEY_CLIENT_ID and DIGIKEY_CLIENT_SECRET (free at developer.digikey.com).
   mouser   needs MOUSER_API_KEY (free from your Mouser account, Search API).
+  jlcparts keyless and offline. The open jlcparts copy of the whole JLCPCB/LCSC catalog, downloaded
+           once with `ph catalog update` (see catalog.py). Exact matches only.
 
 Keys come from environment variables only and are never written to project files.
 """
@@ -231,12 +233,18 @@ def lookup_mouser(part: dict[str, Any]) -> list[Offer]:
     return parse_mouser(payload, mpn)
 
 
-SOURCES = {"lcsc": lookup_lcsc, "digikey": lookup_digikey, "mouser": lookup_mouser}
+def lookup_jlcparts(part: dict[str, Any]) -> list[Offer]:
+    from . import catalog
+    return catalog.lookup(part)
+
+
+SOURCES = {"lcsc": lookup_lcsc, "jlcparts": lookup_jlcparts, "digikey": lookup_digikey, "mouser": lookup_mouser}
 
 
 def available_sources() -> list[str]:
-    """LCSC always; keyed sources only when their keys are set."""
-    out = ["lcsc"]
+    """LCSC always; the offline catalog once downloaded; keyed sources only when their keys are set."""
+    from . import catalog
+    out = ["lcsc"] + (["jlcparts"] if catalog.available() else [])
     if os.environ.get("DIGIKEY_CLIENT_ID") and os.environ.get("DIGIKEY_CLIENT_SECRET"):
         out.append("digikey")
     if os.environ.get("MOUSER_API_KEY"):

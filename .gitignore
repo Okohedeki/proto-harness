@@ -10,3 +10,6 @@ dist/
 *.log
 *_sklib.py
 skidl_REPL.*
+
+# local editor and agent settings
+.claude/
