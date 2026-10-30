@@ -2,12 +2,12 @@ name: ci
 on: [push, pull_request]
 jobs:
   test:
-    # Linux only to fit private-repo Actions minutes. Windows and macOS are tested locally;
-    # add windows-latest and macos-latest back when minutes allow (macOS bills at 10x).
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.10", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
